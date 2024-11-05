@@ -8,11 +8,14 @@ from botocore.client import Config
 from opensearch_utils import OpenSearchClient
 from ai_utils import AIUtils
 
+
 @strawberry.type
 class SearchResult:
     id: str
     content: str
+    page_number: int
     score: float
+
 
 @strawberry.type
 class Query:
@@ -21,9 +24,10 @@ class Query:
         ai_utils = AIUtils()
         opensearch_client = OpenSearchClient()
 
-        # Create embedding for the query - we'll take first embedding since we need one vector
-        embeddings = await ai_utils.create_embeddings(query)
-        query_embedding = embeddings[0]  # Take first embedding for the search
+        # Create embedding for the query - get single embedding vector
+        embeddings, _ = await ai_utils.create_embeddings(query)
+        # Take first embedding and convert to list of floats
+        query_embedding = [float(x) for x in embeddings[0]]
 
         # Search documents
         results = await opensearch_client.search_documents(query_embedding, top_k)
@@ -32,10 +36,12 @@ class Query:
             SearchResult(
                 id=result["id"],
                 content=result["content"],
-                score=result["score"]
+                page_number=result["page_number"],
+                score=result["score"],
             )
             for result in results
         ]
+
 
 @strawberry.type
 class Mutation:
@@ -59,10 +65,7 @@ class Mutation:
                 variables = {"pdfId": pdf_id}
                 response = await client.post(
                     "http://service1:8081/graphql",
-                    json={
-                        "query": query,
-                        "variables": variables
-                    }
+                    json={"query": query, "variables": variables},
                 )
 
                 if response.status_code != 200:
@@ -79,32 +82,27 @@ class Mutation:
 
             # 2. Download PDF from S3
             s3_client = boto3.client(
-                's3',
-                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
-                config=Config(signature_version='s3v4')
+                "s3",
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                config=Config(signature_version="s3v4"),
             )
 
-            bucket_name = os.getenv('BUCKET_NAME')
+            bucket_name = os.getenv("BUCKET_NAME")
             file_key = pdf_data["filename"]
 
-            # Download PDF content to memory
+            # 3. Download PDF content to memory
             response = s3_client.get_object(Bucket=bucket_name, Key=file_key)
-            pdf_content = response['Body'].read()
+            pdf_content = response["Body"].read()
 
-            # 3. Extract text from PDF
-            text_content = await ai_utils.extract_text_from_pdf(pdf_content)
+            # 4. Extract text from PDF with page numbers
+            page_chunks = await ai_utils.extract_text_from_pdf(pdf_content)
 
-            # 4. Create embeddings
-            embedding = await ai_utils.create_embeddings(text_content)
+            # 5. Create embeddings
+            embeddings, chunks = await ai_utils.create_embeddings(page_chunks)
 
-            # 5. Index document in OpenSearch
-            await opensearch_client.index_document(
-                str(pdf_id),
-                text_content,
-                {},  # Empty metadata since summary is stored in Service 1
-                embedding
-            )
+            # Index document in OpenSearch with page numbers
+            await opensearch_client.index_document(str(pdf_id), chunks, {}, embeddings)
 
             return True
 
@@ -131,10 +129,7 @@ class Mutation:
                 variables = {"pdfId": pdf_id}
                 response = await client.post(
                     "http://service1:8081/graphql",
-                    json={
-                        "query": query,
-                        "variables": variables
-                    }
+                    json={"query": query, "variables": variables},
                 )
 
                 if response.status_code != 200:
@@ -146,30 +141,31 @@ class Mutation:
 
                 pdf_data = data["data"]["pdf"]
 
-            # 2. Download PDF from S3
+            # 2a. Download PDF from S3
             s3_client = boto3.client(
-                's3',
-                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
-                config=Config(signature_version='s3v4')
+                "s3",
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                config=Config(signature_version="s3v4"),
             )
 
-            bucket_name = os.getenv('BUCKET_NAME')
+            bucket_name = os.getenv("BUCKET_NAME")
             file_key = pdf_data["filename"]
 
-            # Download PDF content to memory
+            # 2b. Download PDF content to memory
             response = s3_client.get_object(Bucket=bucket_name, Key=file_key)
-            pdf_content = response['Body'].read()
+            pdf_content = response["Body"].read()
 
-            # 3. Extract text from PDF
-            text_content = await ai_utils.extract_text_from_pdf(pdf_content)
+            # 3. Extract text from PDF with page numbers
+            page_chunks = await ai_utils.extract_text_from_pdf(pdf_content)
 
             # 4. Generate and return summary
-            summary = await ai_utils.create_summary(text_content)
+            summary = await ai_utils.create_summary(page_chunks)
             return summary
 
         except Exception as e:
             print(f"Error generating summary: {e}")
             raise
+
 
 schema = strawberry.federation.Schema(query=Query, mutation=Mutation)
