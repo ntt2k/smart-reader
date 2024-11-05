@@ -1,7 +1,7 @@
-from opensearchpy import OpenSearch
 import os
-from typing import List, Dict, Any
 from datetime import datetime
+from typing import List, Dict, Any
+from opensearchpy import OpenSearch
 
 class OpenSearchClient:
     def __init__(self):

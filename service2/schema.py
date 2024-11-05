@@ -1,8 +1,6 @@
 import strawberry
-from typing import List, Optional
-from datetime import datetime
+from typing import List
 import httpx
-import base64
 import os
 import boto3
 from botocore.client import Config
@@ -114,7 +112,7 @@ class Mutation:
             return False
 
     @strawberry.mutation
-    async def generate_summary(self, pdf_id: int) -> bool:
+    async def generate_summary(self, pdf_id: int) -> str:
         try:
             ai_utils = AIUtils()
 
@@ -139,13 +137,11 @@ class Mutation:
                 )
 
                 if response.status_code != 200:
-                    print(f"Error fetching PDF metadata: {response.text}")
-                    return False
+                    raise Exception(f"Error fetching PDF metadata: {response.text}")
 
                 data = response.json()
                 if not data.get("data", {}).get("pdf"):
-                    print(f"PDF with id {pdf_id} not found")
-                    return False
+                    raise Exception(f"PDF with id {pdf_id} not found")
 
                 pdf_data = data["data"]["pdf"]
 
@@ -167,38 +163,12 @@ class Mutation:
             # 3. Extract text from PDF
             text_content = await ai_utils.extract_text_from_pdf(pdf_content)
 
-            # 4. Generate summary
+            # 4. Generate and return summary
             summary = await ai_utils.create_summary(text_content)
-
-            # 5. Update summary in Service 1
-            async with httpx.AsyncClient() as client:
-                mutation = """
-                    mutation($pdfId: Int!, $summary: String!) {
-                        updatePdfSummary(pdfId: $pdfId, summary: $summary) {
-                            id
-                            summary
-                        }
-                    }
-                """
-                variables = {
-                    "pdfId": pdf_id,
-                    "summary": summary
-                }
-                response = await client.post(
-                    "http://service1:8081/graphql",
-                    json={
-                        "query": mutation,
-                        "variables": variables
-                    }
-                )
-                if response.status_code != 200:
-                    print(f"Error updating summary in Service 1: {response.text}")
-                    return False
-
-            return True
+            return summary
 
         except Exception as e:
             print(f"Error generating summary: {e}")
-            return False
+            raise
 
 schema = strawberry.federation.Schema(query=Query, mutation=Mutation)
