@@ -1,6 +1,6 @@
 import strawberry
 from strawberry.file_uploads import Upload
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime
 import boto3
 import os
@@ -27,7 +27,7 @@ def convert_to_strawberry_type(pdf: PDF) -> PDFType:
 @strawberry.type
 class Query:
     @strawberry.field
-    async def pdfs(self) -> List[PDFType]:
+    async def pdfs(self) -> list[PDFType]:
         async with get_session() as session:
             statement = select(PDF).order_by(PDF.upload_date.desc())
             result = await session.execute(statement)
@@ -45,25 +45,22 @@ class Query:
 @strawberry.type
 class Mutation:
     @strawberry.mutation
-    async def upload_pdfs(self, files: List[Upload]) -> List[PDFType]:
+    async def upload_pdf(self, file: Upload) -> PDFType:
         s3 = boto3.client("s3")
-        uploaded_pdfs = []
+
+        # Upload to S3
+        filename = file.filename
+        s3.upload_fileobj(file.file, BUCKET_NAME, filename)
+        s3_url = f"s3://{BUCKET_NAME}/{filename}"
 
         async with get_session() as session:
-            for file in files:
-                # Upload to S3
-                filename = file.filename
-                s3.upload_fileobj(file.file, BUCKET_NAME, filename)
-                s3_url = f"s3://{BUCKET_NAME}/{filename}"
+            # Create PDF record
+            pdf = PDF(filename=filename, s3_url=s3_url)
+            session.add(pdf)
+            await session.commit()
+            await session.refresh(pdf)
 
-                # Create PDF record
-                pdf = PDF(filename=filename, s3_url=s3_url)
-                session.add(pdf)
-                await session.commit()
-                await session.refresh(pdf)
-                uploaded_pdfs.append(convert_to_strawberry_type(pdf))
-
-        return uploaded_pdfs
+        return convert_to_strawberry_type(pdf)
 
     @strawberry.mutation
     async def delete_pdf(self, pdf_id: int) -> bool:
