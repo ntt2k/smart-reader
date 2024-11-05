@@ -4,7 +4,7 @@ from typing import Optional
 from datetime import datetime
 import boto3
 import os
-from sqlmodel import select
+from sqlmodel import select, update
 
 from models import PDF
 from database import get_session
@@ -17,11 +17,16 @@ class PDFType:
     id: int
     filename: str
     s3_url: str
+    summary: Optional[str]
     upload_date: datetime
 
 def convert_to_strawberry_type(pdf: PDF) -> PDFType:
     return PDFType(
-        id=pdf.id, filename=pdf.filename, s3_url=pdf.s3_url, upload_date=pdf.upload_date
+        id=pdf.id,
+        filename=pdf.filename,
+        s3_url=pdf.s3_url,
+        summary=pdf.summary,
+        upload_date=pdf.upload_date
     )
 
 @strawberry.type
@@ -61,6 +66,24 @@ class Mutation:
             await session.refresh(pdf)
 
         return convert_to_strawberry_type(pdf)
+
+    @strawberry.mutation
+    async def update_pdf_summary(self, pdf_id: int, summary: str) -> Optional[PDFType]:
+        async with get_session() as session:
+            # Find the PDF
+            statement = select(PDF).where(PDF.id == pdf_id)
+            result = await session.execute(statement)
+            pdf = result.scalar_one_or_none()
+
+            if not pdf:
+                return None
+
+            # Update the summary
+            pdf.summary = summary
+            await session.commit()
+            await session.refresh(pdf)
+
+            return convert_to_strawberry_type(pdf)
 
     @strawberry.mutation
     async def delete_pdf(self, pdf_id: int) -> bool:
