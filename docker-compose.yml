@@ -1,4 +1,5 @@
 version: '3'
+
 services:
   service1:
     build: ./service1
@@ -13,16 +14,26 @@ services:
       - ./service1:/app
     depends_on:
       - db
+    networks:
+      - backend-network
 
-  # service2:
-  #   build: ./service2
-  #   ports:
-  #     - "8082:8082"
-  #   environment:
-  #     - OPENSEARCH_URL=http://opensearch:9200
-  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
-  #   depends_on:
-  #     - opensearch
+  service2:
+    build: ./service2
+    ports:
+      - "8082:8082"
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - BUCKET_NAME=${BUCKET_NAME}
+      - OPENSEARCH_URL=http://opensearch:9200
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./service2:/app
+    depends_on:
+      - opensearch
+      - service1
+    networks:
+      - backend-network
 
   db:
     image: postgres:13
@@ -32,15 +43,39 @@ services:
       - POSTGRES_DB=pdfs
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend-network
 
-  # opensearch:
-  #   image: opensearchproject/opensearch:latest
-  #   environment:
-  #     - discovery.type=single-node
-  #     - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
-  #   ports:
-  #     - "9200:9200"
-  #     - "9600:9600"
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true    # Disable security plugin
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      # Memory settings
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      # Thread pool settings
+      - "thread_pool.write.queue_size=1000"
+      - "cluster.routing.allocation.disk.threshold_enabled=false"
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    networks:
+      - backend-network
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+
+networks:
+  backend-network:
+    driver: bridge
 
 volumes:
   postgres_data:
+  opensearch_data:
