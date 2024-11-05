@@ -101,7 +101,7 @@ class Mutation:
             # 5. Create embeddings
             embeddings, chunks = await ai_utils.create_embeddings(page_chunks)
 
-            # Index document in OpenSearch with page numbers
+            # 6. Index document in OpenSearch with page numbers
             await opensearch_client.index_document(str(pdf_id), chunks, {}, embeddings)
 
             return True

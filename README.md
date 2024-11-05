@@ -84,8 +84,8 @@ This federated setup allows each service to operate independently, contributing 
 
 ### Services and Ports
 
-- **File Management Service**: http://localhost:8081
-- **PDF Indexing and Querying Service**: http://localhost:8082
+- **Service 1: File Management Service**: http://localhost:8081
+- **Service 2: PDF Indexing and Querying Service**: http://localhost:8082
 - **OpenSearch Dashboard**: http://localhost:5601
 
 ### Usage
