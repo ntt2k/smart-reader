@@ -21,8 +21,9 @@ class Query:
         ai_utils = AIUtils()
         opensearch_client = OpenSearchClient()
 
-        # Create embedding for the query
-        query_embedding = await ai_utils.create_embeddings(query)
+        # Create embedding for the query - we'll take first embedding since we need one vector
+        embeddings = await ai_utils.create_embeddings(query)
+        query_embedding = embeddings[0]  # Take first embedding for the search
 
         # Search documents
         results = await opensearch_client.search_documents(query_embedding, top_k)

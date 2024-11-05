@@ -31,10 +31,13 @@ class AIUtils:
         return text
 
     async def create_embeddings(self, text: str) -> List[List[float]]:
-        # Split text into chunks
-        chunks = await self.split_text(text)
+        # For short texts like search queries, don't split into chunks
+        if len(self.tokenizer.encode(text)) < 8000:  # Arbitrary threshold
+            embedding = await self.embeddings.aembed_query(text)
+            return [embedding]  # Return single embedding in list format
 
-        # Create embeddings for each chunk
+        # For longer texts, split into chunks as before
+        chunks = await self.split_text(text)
         embeddings = []
         for chunk in chunks:
             chunk_embedding = await self.embeddings.aembed_query(chunk.page_content)

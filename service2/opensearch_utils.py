@@ -59,12 +59,19 @@ class OpenSearchClient:
             # Split content into chunks to match embeddings
             chunks = content.split('\n\n')  # Simple splitting, matches the text splitter in AIUtils
 
+            if len(chunks) != len(embeddings):
+                print(f"Warning: Number of chunks ({len(chunks)}) doesn't match number of embeddings ({len(embeddings)})")
+                # Use shorter length to avoid index errors
+                length = min(len(chunks), len(embeddings))
+                chunks = chunks[:length]
+                embeddings = embeddings[:length]
+
             # Index each chunk with its embedding
             for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 document = {
                     'content': chunk,
                     'chunk_index': i,
-                    'embedding': embedding,
+                    'embedding': embedding,  # Each embedding should be a single List[float]
                     'metadata': metadata,
                     'created_at': datetime.utcnow().isoformat()
                 }
