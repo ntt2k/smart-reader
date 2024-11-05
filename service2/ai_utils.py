@@ -1,15 +1,18 @@
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document as LangchainDocument
-from typing import List, Dict, Any
-import os
-from pypdf import PdfReader
 import io
+import os
+from typing import List
+
+from langchain.schema import Document as LangchainDocument
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings
+from openai import AsyncOpenAI
+from pypdf import PdfReader
+
 
 class AIUtils:
     def __init__(self):
         self.embeddings = OpenAIEmbeddings()
-        self.llm = ChatOpenAI(temperature=0)
+        self.client = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=100
@@ -42,31 +45,31 @@ class AIUtils:
         # Summarize each chunk
         chunk_summaries = []
         for chunk in chunks:
-            prompt = f"""Please provide a concise summary of the following text. Focus on the main points and key takeaways:
-
-            {chunk.page_content}
-
-            Summary:"""
-
-            messages = [{"role": "user", "content": prompt}]
-            response = await self.llm.agenerate([messages])
-            chunk_summaries.append(response.generations[0][0].text)
+            response = await self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that creates concise summaries."},
+                    {"role": "user", "content": f"Please summarize the following text, focusing on the main points and key takeaways:\n\n{chunk.page_content}"}
+                ],
+                temperature=0
+            )
+            chunk_summaries.append(response.choices[0].message.content)
 
         # If we have multiple chunks, create a final summary
         if len(chunk_summaries) > 1:
             combined_summary = "\n\n".join(chunk_summaries)
-            final_prompt = f"""Please provide a coherent summary combining these section summaries:
 
-            {combined_summary}
-
-            Final Summary:"""
-
-            messages = [{"role": "user", "content": final_prompt}]
-            response = await self.llm.agenerate([messages])
-            return response.generations[0][0].text
+            response = await self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that creates coherent summaries."},
+                    {"role": "user", "content": f"Please provide a coherent summary with bullet points combining these section summaries:\n\n{combined_summary}"}
+                ],
+                temperature=0
+            )
+            return response.choices[0].message.content
 
         return chunk_summaries[0] if chunk_summaries else ""
 
     async def split_text(self, text: str) -> List[LangchainDocument]:
         return self.text_splitter.create_documents([text])
-    
