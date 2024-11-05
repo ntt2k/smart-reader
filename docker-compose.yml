@@ -1,0 +1,46 @@
+version: '3'
+services:
+  service1:
+    build: ./service1
+    ports:
+      - "8081:8081"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://user:password@db:5432/pdfs
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - BUCKET_NAME=${BUCKET_NAME}
+    volumes:
+      - ./service1:/app
+    depends_on:
+      - db
+
+  # service2:
+  #   build: ./service2
+  #   ports:
+  #     - "8082:8082"
+  #   environment:
+  #     - OPENSEARCH_URL=http://opensearch:9200
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+  #   depends_on:
+  #     - opensearch
+
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=pdfs
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # opensearch:
+  #   image: opensearchproject/opensearch:latest
+  #   environment:
+  #     - discovery.type=single-node
+  #     - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+  #   ports:
+  #     - "9200:9200"
+  #     - "9600:9600"
+
+volumes:
+  postgres_data:

@@ -1,0 +1,15 @@
+# Ignore Terraform files
+.terraform
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Ignore environment variables file
+.env
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore system files
+.DS_Store
