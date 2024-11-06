@@ -61,8 +61,8 @@ This federated setup allows each service to operate independently, contributing 
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/your-repo-name.git
-   cd your-repo-name
+   git clone https://github.com/ntt2k/smart-reader.git
+   cd smart-reader
    ```
 
 2. **Environment Variables**
