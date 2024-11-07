@@ -1,0 +1,57 @@
+curl -X POST http://localhost:8081/graphql \
+  -F operations='{ "query": "mutation($file: Upload!) { uploadPdf(file: $file) { id filename s3Url summary uploadDate } }", "variables": { "file": null } }' \
+  -F map='{ "0": ["variables.file"] }' \
+  -F "0=@mangone-et-al-2024-survival-risk-score-for-invasive-nonmetastatic-breast-cancer-a-real-world-analysis.pdf"
+
+curl -X POST http://localhost:8081/graphql \
+  -F operations='{ "query": "mutation($file: Upload!) { uploadPdf(file: $file) { id filename s3Url summary uploadDate } }", "variables": { "file": null } }' \
+  -F map='{ "0": ["variables.file"] }' \
+  -F "0=@morgan-et-al-2024-collecting-long-term-outcomes-in-population-based-cancer-registry-data-the-case-of-breast-cancer.pdf"
+
+mutation($id: Int!) {
+  indexPdf(pdfId: $id)
+}
+
+mutation($id: Int!) {
+  generateSummary(pdfId: $id)
+}
+
+# Basic search query
+query {
+  searchPdfs(query: "machine learning algorithms", topK: 5) {
+    id
+    content
+    score
+  }
+}
+
+--------------------------------
+Opensearch query
+
+# List all indices
+GET _cat/indices
+
+# View documents in the pdf_documents index
+GET pdf_documents/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+
+GET /pdf_documents/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "_source": false,
+  "fields": ["_id"],
+  "size": 10000
+}
+
+# View specific document
+GET pdf_documents/_doc/<document_id>
+
+# View index mapping
+GET pdf_documents/_mapping
+
